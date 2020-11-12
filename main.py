@@ -1,5 +1,7 @@
 import csv
 import os
+
+import manifold_mesh
 from shapenetsemObject import ShapeNetSemObject
 
 shapenetsem_root = "/local/home/sbeetschen/Documents/data/ShapeNetSem"
@@ -61,3 +63,14 @@ if __name__ == "__main__":
             object.density = synset_categories_density_dict[object.wnsynset]
             objects_w_density.append(object)
     print("number of objects with density: " + str(len(objects_w_density)))
+
+    ids = []
+    for object in objects_w_density:
+        full_id_string = object.full_id
+        id = full_id_string.split(".")[1] + ".obj"
+        ids.append(id)
+    print("ids length: ", str(len(ids)))
+
+    models_dir = os.path.join(shapenetsem_root, "models")
+    out_dir = os.path.join(shapenetsem_root, "models_wdensity_watertight")
+    manifold_mesh.makewatertight(ids, models_dir, out_dir)
