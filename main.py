@@ -1,4 +1,5 @@
 import csv
+import datetime
 import os
 
 import trimesh
@@ -12,6 +13,9 @@ if __name__ == "__main__":
     models_dir = os.path.join(config.SHAPENETSEM_ROOT, "models")
     models_watertight_dir = os.path.join(config.SHAPENETSEM_ROOT, "models_wdensity_watertight")
 
+    fail_file = open("errors.txt", mode="a")
+    fail_file.write("====main.py run of " + datetime.datetime.now().strftime('%m-%d-%H:%M:%S') + "====\n")
+
     objects = []
     with open(os.path.join(config.SHAPENETSEM_ROOT, "metadata.csv"), mode="r") as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=",")
@@ -19,7 +23,7 @@ if __name__ == "__main__":
             # skip header row
             if i == 0:
                 continue
-            object = ShapeNetSemObject(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[14], row[15])
+            object = ShapeNetSemObject(row[0].split(".")[1], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[14], row[15])
             objects.append(object)
     print("number of objects: " + str(len(objects)))
 
@@ -50,6 +54,7 @@ if __name__ == "__main__":
     print("number of categories with density: " + str(len(categories_density_dict)))
 
     synset_categories_density_dict = {}
+    synset_categories_names = {}
     with open(os.path.join(config.SHAPENETSEM_ROOT, "categories.synset.csv"), mode="r") as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=",")
         for i, row in enumerate(csv_reader):
@@ -60,6 +65,7 @@ if __name__ == "__main__":
             synset_cat = row[2]
             if category in categories_density_dict:
                 synset_categories_density_dict[synset_cat] = categories_density_dict[category]
+            synset_categories_names[synset_cat] = category
     print("number of synset categories with density: " + str(len(synset_categories_density_dict)))
     objects_w_density = []
     for object in objects:
@@ -68,16 +74,16 @@ if __name__ == "__main__":
             objects_w_density.append(object)
     print("number of objects with density: " + str(len(objects_w_density)))
 
-    with open("metadata_full_wunit.csv", mode="w") as csv_file:
+    with open("metadata_full_wunit3.csv", mode="w") as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=",")
-        csv_writer.writerow(["category", "wnsynset", "wnlemmas", "up", "front", "unit", "aligned.dims", "volume[m^3]",
+        csv_writer.writerow(["full_id", "category", "wnsynset", "synset category name", "wnlemmas", "up", "front", "unit", "aligned.dims", "volume[m^3]",
                              "average density[kg/m^3]", "mass[kg]", "name", "tags"])
         filenames = []
         list = objects_w_density
+        full_objects = []
         for i, object in enumerate(list):
             print(str(i) + "/" + str(len(list)))
-            full_id_string = object.full_id
-            filename = full_id_string.split(".")[1] + ".obj"
+            filename = object.full_id + ".obj"
             filenames.append(filename)
             try:
                 mesh = trimesh.load(os.path.join(models_watertight_dir, filename), process=False, force="mesh")
@@ -95,10 +101,18 @@ if __name__ == "__main__":
             object.volume = volume
             mass = volume * object.density
             object.mass = mass
-            csv_writer.writerow([object.category, object.wnsynset, object.wnlemmas, object.up, object.front, object.unit,
+            # if the mass of the object is 0 or lower, something went wrong
+            if mass <= 0:
+                fail_file.write(datetime.datetime.now().strftime('%m-%d-%H:%M:%S') + " " + str(filename) +
+                                " has mass value: " + str(mass) + "\n")
+                print("error: file " + filename + " has mass: " + str(mass))
+                continue
+            full_objects.append(object)
+            csv_writer.writerow([object.full_id, object.category, object.wnsynset, synset_categories_names[object.wnsynset], object.wnlemmas, object.up, object.front, object.unit,
                                  object.aligned_dims, object.volume, object.density, object.mass, object.name, object.tags])
 
-    print("ids length: ", str(len(filenames)))
+    fail_file.close()
+    print("number of final objects: ", str(len(full_objects)))
 
 
     # manifold_mesh.makewatertight(ids, models_dir, out_dir)

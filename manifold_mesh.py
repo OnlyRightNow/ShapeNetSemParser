@@ -17,14 +17,14 @@ def makewatertight(filelist, models_dir, out_dir):
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
     # open fail file with append mode to add files of meshes that were not converted successfully
-    fail_file = open("errors_run.txt", mode="a")
-    fail_file.write("====run of " + datetime.datetime.now().strftime('%m-%d-%H:%M:%S') + "====")
+    fail_file = open("errors.txt", mode="a")
+    fail_file.write("====mainfold_mesh.py run of " + datetime.datetime.now().strftime('%m-%d-%H:%M:%S') + "====\n")
     # iterate over whole filelist and try to convert the mesh
     number_items = len(filelist)
     for i, file in enumerate(filelist):
             print(str(i) + "/" + str(number_items))
             try:
-                subprocess.run(["/local/home/sbeetschen/Documents/code/ManifoldPlus/build/manifold", "--input",
+                subprocess.run([config.MANIFOLD_PATH, "--input",
                                 os.path.join(models_dir, file),
                                 "--output",
                                 os.path.join(out_dir, file)],
