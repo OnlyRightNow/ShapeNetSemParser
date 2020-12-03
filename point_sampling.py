@@ -1,10 +1,10 @@
-import numpy as np
-import binvox_rw
-from mpl_toolkits.mplot3d import Axes3D
+import h5py
 import matplotlib.pyplot as plt
-import is_inside_mesh
+import numpy as np
 import open3d as o3d
 import trimesh
+
+import binvox_rw
 
 
 def plot_voxels(voxel_matrix):
@@ -30,9 +30,9 @@ if __name__ == "__main__":
     data_points = sample_uniform_points(number_points)
     # load voxelized model
     with open("models/non-solid/1022fe7dd03f6a4d4d5ad9f13ac9f4e7.obj_64.binvox", "rb") as f:
-        model = binvox_rw.read_as_3d_array(f)
+        voxels = binvox_rw.read_as_3d_array(f)
     # plot voxels
-    plot_voxels(model.data)
+    # plot_voxels(voxels.data)
 
     mesh_o3d = o3d.io.read_triangle_mesh("models/non-solid/1022fe7dd03f6a4d4d5ad9f13ac9f4e7.obj")
     mesh_o3d.compute_vertex_normals()
@@ -65,12 +65,17 @@ if __name__ == "__main__":
         if sdf_value > 0:
             colors[i] = [1, 0, 0]
             number_sampled_points_inside += 1
-            data_values.append(1)
+            data_values.append([1])
         else:
-            data_values.append(0)
+            data_values.append([0])
 
     pc.colors = o3d.utility.Vector3dVector(colors)
 
     print("number sampled points inside: ", number_sampled_points_inside)
 
+    number_objects = 1
+    with h5py.File("shapenetsem_training.hdf5", "w") as f:
+        f.create_dataset("voxels_64", (number_objects, 1, 64, 64, 64), dtype="uint8", data=np.asarray([[voxels.data]]))
+        f.create_dataset("points_16", (number_objects, number_points, 4), dtype="float32", data=np.asarray([data_points]))
+        f.create_dataset("values_16", (number_objects, number_points, 1), dtype="float32", data=np.asarray([data_values]))
     o3d.visualization.draw_geometries([origin, unit_box, pc])

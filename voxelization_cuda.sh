@@ -7,6 +7,7 @@ echo "models root: $MODELS_ROOT"
 for entry in "$MODELS_ROOT"*
 do
   $cuda_voxelizer -f "$entry" -s "64" -o "binvox"
+  mv *.binvox ../models_voxelized
 done
 
 
