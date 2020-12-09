@@ -5,7 +5,6 @@ import os
 import trimesh
 
 import config
-import manifold_mesh
 from shapenetsemObject import ShapeNetSemObject
 
 if __name__ == "__main__":
@@ -74,7 +73,7 @@ if __name__ == "__main__":
             objects_w_density.append(object)
     print("number of objects with density: " + str(len(objects_w_density)))
 
-    with open("metadata_full_wunit3.csv", mode="w") as csv_file:
+    with open("metadata_full_wunit3_tmp.csv", mode="w") as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=",")
         csv_writer.writerow(["full_id", "category", "wnsynset", "synset category name", "wnlemmas", "up", "front", "unit", "aligned.dims", "volume[m^3]",
                              "average density[kg/m^3]", "mass[kg]", "name", "tags"])
