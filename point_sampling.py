@@ -47,23 +47,22 @@ if __name__ == "__main__":
     text_file = open(os.path.join("out", dataset_name + ".txt"), "w")
     voxel_files_path = np.asarray(glob.glob(os.path.join(*[config.SHAPENETSEM_ROOT, "models_voxelized", "*.binvox"])))
     voxel_files_path = voxel_files_path[0: int(0.8*len(voxel_files_path))]#[15, 16, 17, 20]]#int(0.8*len(voxel_files_path))]0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12,
+    number_sampled_objects = 0
     for i, voxel_file_path in enumerate(voxel_files_path):
         try:
             # load voxelized model
             with open(voxel_file_path, "rb") as f:
                 voxels = binvox_rw.read_as_3d_array(f)
-            data_voxels_list.append(voxels.data)
 
             object_id = voxel_file_path.split("/")[-1].split(".")[0]
             # write object id to textfile
             text_file.write(object_id + "\n")
             mesh_o3d = o3d.io.read_triangle_mesh(
-                os.path.join(*[config.SHAPENETSEM_ROOT, "models_wdensity_watertight", object_id + ".obj"]))
+                os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]))
             mesh_trimesh = trimesh.load_mesh(
-                os.path.join(*[config.SHAPENETSEM_ROOT, "models_wdensity_watertight", object_id + ".obj"]),
+                os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]),
                 process=False)
             data_points = sample_uniform_points(number_points)
-            data_points_list.append(data_points)
             if visualization:
                 # plot voxels
                 plot_voxels(voxels.data)
@@ -124,13 +123,17 @@ if __name__ == "__main__":
             if visualization:
                 pc.colors = o3d.utility.Vector3dVector(colors)
                 o3d.visualization.draw_geometries([origin, unit_box, pc])
+
+            data_voxels_list.append(voxels.data)
+            data_points_list.append(data_points)
+            number_sampled_objects += 1
         except Exception as e:
             print(str(i) + "/" + str(len(voxel_files_path)) + " " + object_id + " ERROR: " + str(e))
 
     # close text file
     text_file.close()
     # write data to hdf5 file
-    number_objects = len(voxel_files_path)
+    number_objects = number_sampled_objects
     with h5py.File(os.path.join("out", dataset_name + ".hdf5"), "w") as f:
         f.create_dataset("voxels_64", (number_objects, 1, 64, 64, 64), dtype="uint8", data=np.asarray([data_voxels_list]))
         f.create_dataset("points_16", (number_objects, number_points, 4), dtype="float32", data=np.asarray(data_points_list))
