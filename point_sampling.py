@@ -36,6 +36,10 @@ def sample_uniform_points(number_points, seed=None):
     return points
 
 
+def sample_surface_biased(number_points, mesh_trimesh):
+    return 0
+
+
 if __name__ == "__main__":
     number_points = 4096
     visualization = False
@@ -46,22 +50,27 @@ if __name__ == "__main__":
     data_values_list = []
     text_file = open(os.path.join("out", dataset_name + ".txt"), "w")
     voxel_files_path = np.asarray(glob.glob(os.path.join(*[config.SHAPENETSEM_ROOT, "models_voxelized", "*.binvox"])))
-    voxel_files_path = voxel_files_path[0: int(0.8*len(voxel_files_path))]#[15, 16, 17, 20]]#int(0.8*len(voxel_files_path))]0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12,
+    voxel_files_path = voxel_files_path[0:100] #int(0.8*len(voxel_files_path))]#[15, 16, 17, 20]]#int(0.8*len(voxel_files_path))]0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12,
     number_sampled_objects = 0
+    sum_sampled_inliers = 0
     for i, voxel_file_path in enumerate(voxel_files_path):
         try:
+            object_id = voxel_file_path.split("/")[-1].split(".")[0]
+            print(str(i) + "/" + str(len(voxel_files_path)) + " " + object_id)
+            # skip this object if the mesh is very large
+            if os.path.getsize(os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]))/ 1e6 > 1.75:
+                print("skipped")
+                continue
             # load voxelized model
             with open(voxel_file_path, "rb") as f:
                 voxels = binvox_rw.read_as_3d_array(f)
-
-            object_id = voxel_file_path.split("/")[-1].split(".")[0]
             # write object id to textfile
             text_file.write(object_id + "\n")
-            mesh_o3d = o3d.io.read_triangle_mesh(
-                os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]))
-            mesh_trimesh = trimesh.load_mesh(
-                os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]),
-                process=False)
+            # mesh_o3d = o3d.io.read_triangle_mesh(
+            #     os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]))
+            print("file size: ",
+                  os.path.getsize(os.path.join(*[config.SHAPENETSEM_ROOT, "models", object_id + ".obj"]))/ 1e6)
+            mesh_trimesh = trimesh.load(os.path.join(*[config.SHAPENETSEM_ROOT, "models_wdensity_watertight", object_id + ".obj"]), process=False, force="mesh")
             data_points = sample_uniform_points(number_points)
             if visualization:
                 # plot voxels
@@ -79,12 +88,12 @@ if __name__ == "__main__":
                 pc.paint_uniform_color([0, 0, 0])
                 colors = np.asarray(pc.colors)
 
-            # get axis aligned bounding box
-            bbox = mesh_o3d.get_axis_aligned_bounding_box()
-            # scale mesh down to unit bounding box
-            mesh_o3d.scale(1 / bbox.get_max_extent(), mesh_o3d.get_center())
-            # move it to origin
-            mesh_o3d.translate(-mesh_o3d.get_axis_aligned_bounding_box().get_center())
+            # # get axis aligned bounding box
+            # bbox = mesh_o3d.get_axis_aligned_bounding_box()
+            # # scale mesh down to unit bounding box
+            # mesh_o3d.scale(1 / bbox.get_max_extent(), mesh_o3d.get_center())
+            # # move it to origin
+            # mesh_o3d.translate(-mesh_o3d.get_axis_aligned_bounding_box().get_center())
 
             # scale it down
             max_extent = np.max(mesh_trimesh.extents)
@@ -101,8 +110,8 @@ if __name__ == "__main__":
             # trimesh.scene.Scene([mesh_trimesh, mesh_trimesh.bounding_box, unit_box_trimesh.bounding_box]).show()
 
             # calculate signed distance function for all sampled points
-            mesh_trimesh2 = trimesh.Trimesh(np.asarray(mesh_o3d.vertices), np.asarray(mesh_o3d.triangles),
-                                            vertex_normals=np.asarray(mesh_o3d.vertex_normals))
+            # mesh_trimesh2 = trimesh.Trimesh(np.asarray(mesh_o3d.vertices), np.asarray(mesh_o3d.triangles),
+            #                                 vertex_normals=np.asarray(mesh_o3d.vertex_normals))
             sdf = trimesh.proximity.signed_distance(mesh_trimesh, data_points[:, 0:3])
 
             data_values = []
@@ -117,8 +126,10 @@ if __name__ == "__main__":
                     data_values.append([0])
             data_values_list.append(data_values)
 
-            print(str(i) + "/" + str(len(voxel_files_path)) + " " + object_id + " sampled points inside: " + str(
+            print("sampled points inside: " + str(
                 number_sampled_points_inside))
+
+            sum_sampled_inliers += number_sampled_points_inside
 
             if visualization:
                 pc.colors = o3d.utility.Vector3dVector(colors)
@@ -128,12 +139,13 @@ if __name__ == "__main__":
             data_points_list.append(data_points)
             number_sampled_objects += 1
         except Exception as e:
-            print(str(i) + "/" + str(len(voxel_files_path)) + " " + object_id + " ERROR: " + str(e))
+            print("ERROR: " + str(e))
 
     # close text file
     text_file.close()
     # write data to hdf5 file
     number_objects = number_sampled_objects
+    print("average inliers/object: ", str(sum_sampled_inliers/number_objects))
     with h5py.File(os.path.join("out", dataset_name + ".hdf5"), "w") as f:
         f.create_dataset("voxels_64", (number_objects, 1, 64, 64, 64), dtype="uint8", data=np.asarray([data_voxels_list]))
         f.create_dataset("points_16", (number_objects, number_points, 4), dtype="float32", data=np.asarray(data_points_list))
